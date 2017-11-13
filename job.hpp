@@ -1,3 +1,6 @@
+#ifndef JOB_HPP
+#define JOB_HPP
+
 class Job {
 public:
 	int pid;
@@ -12,3 +15,4 @@ public:
 	~Job() {}
 
 };
+#endif 
