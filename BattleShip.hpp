@@ -15,15 +15,32 @@ private:
 
 	// Attack Strategies
 	int linearSearch();
-	int attack_along_ship();
+	int gapSearch();
+	int gapSearch2();
+
+	void attack_along_ship
+		(int x, int y, int& attack, int& hit);
+
+	void attack_along_ship_dfs
+		(int x, int y, int& attack, int& hit);
 
 public:
 	BattleShip();
 	~BattleShip() {};
 
 	void print();
-	void placeShip(const vector<Ship>& ships);
-	int attack(int strategy);
+	void clear();
+
+	void placeShip
+		(const vector<Ship>& ships);
+
+	void generate_random_ship
+		(const vector<int>& length);
+
+	int attack
+		(int strategy);
+
+
 
 
 };
