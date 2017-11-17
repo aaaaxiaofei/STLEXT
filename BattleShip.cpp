@@ -7,7 +7,12 @@ using namespace std;
 BattleShip::BattleShip() {
 	vector<vector<int>> matrix(GRID_SIZE, vector<int>(GRID_SIZE, 0));
 	board = move(matrix);
+
+	vector<vector<int>> matrix2(GRID_SIZE, vector<int>(GRID_SIZE, 0));
+	enemy = move(matrix2);
+
 	num_enemy = 0;
+	enemy_sum = 0;
 	srand(time(NULL));
 }
 
@@ -40,6 +45,28 @@ void BattleShip::print() {
 	}
 	cout << endl;
 }
+
+void BattleShip::print2() {
+	for (int i = 0; i < GRID_SIZE; i++) {
+		for (int j = 0; j < GRID_SIZE; j++) {
+			// Hidden
+			if (enemy[i][j] == 0)
+				cout << " * ";
+			// Is a ship
+			else if (enemy[i][j] == 1)
+				cout << " S ";
+			// Is Attached
+			else if (enemy[i][j] == 2)
+				cout << " X ";
+			// Is water
+			else if (enemy[i][j] == -1)
+				cout << " o ";  
+		}
+		cout << endl;
+	}
+	cout << endl;
+}
+
 
 void BattleShip::placeShip
  (const vector<Ship>& ships) 
@@ -113,6 +140,8 @@ int BattleShip::attack
 				break;
 		case 2: count = gapSearch2();
 				break;
+		case 3: count = scoreSearch();
+				break;
 
 		default : cout << "Strategy " << strategy 
 					   << " is not available." 
@@ -169,6 +198,7 @@ int BattleShip::gapSearch()
 			}
 		}
 	}
+	return attack;
 }
 
 int BattleShip::gapSearch2() 
@@ -176,10 +206,11 @@ int BattleShip::gapSearch2()
 
 	int attack = 0, hit = 0;
 
-	for (int i = 0; i < board.size(); i++) {
+	// first round attack
+	for (int i = 0; i < board.size(); i += 2) {
 		for (int j = 0; j < board[i].size(); j++) {
 
-			if ((i+j)%2 == 1) continue;
+			if ((i+j)%4 != 2) continue;
 
 			if (board[i][j] == 1) {
 				attack_along_ship_dfs(i, j, attack, hit);
@@ -191,6 +222,246 @@ int BattleShip::gapSearch2()
 			}
 		}
 	}
+
+	// Second round attack
+	for (int i = 1; i < board.size(); i += 2) {
+		for (int j = 0; j < board[i].size(); j++) {
+
+			if ((i+j)%2 != 0) continue;
+
+			if (board[i][j] == 1) {
+				attack_along_ship_dfs(i, j, attack, hit);
+				if (hit == num_enemy) return attack;
+			}
+			else if (board[i][j] == 0) {
+				board[i][j] = -1;
+				attack++;
+			}
+		}
+	}
+
+	// Third round attack
+	for (int i = 0; i < board.size(); i += 2) {
+		for (int j = 0; j < board[i].size(); j++) {
+
+			if ((i+j)%4 != 0) continue;
+
+			if (board[i][j] == 1) {
+				attack_along_ship_dfs(i, j, attack, hit);
+				if (hit == num_enemy) return attack;
+			}
+			else if (board[i][j] == 0) {
+				board[i][j] = -1;
+				attack++;
+			}
+		}
+	}
+
+	cout << "total hit time " << hit << endl;
+	return attack;
+}
+
+int BattleShip::scoreSearch()
+{
+
+	int attack = 0;
+	Cell c;
+	vector<vector<Cell>> state(GRID_SIZE, vector<Cell>(GRID_SIZE, c));
+
+	// Initialize score in each grid
+	for (int i = 0; i < GRID_SIZE; i++) {
+		for (int j = 0; j < GRID_SIZE; j++) {
+
+			state[i][j].left = j + 1;
+			state[i][j].right = GRID_SIZE - j;
+			state[i][j].up = i + 1;
+			state[i][j].down = GRID_SIZE - i;
+
+			int score_x = min(state[i][j].up, state[i][j].down) * 2; 
+			int score_y = min(state[i][j].left, state[i][j].right) * 2; 
+
+			state[i][j].value = score_x * score_y;
+		}
+	}
+
+	int hit = 0;
+	while (enemy_sum < 17) {
+		// Search for largest score to attack
+		int max_score = 0, max_i, max_j;
+		for (int i = 0; i < GRID_SIZE; i++) {
+			for (int j = 0; j < GRID_SIZE; j++) {
+				if (state[i][j].value > max_score) {
+					max_score = state[i][j].value;
+					max_i = i;
+					max_j = j;
+				}
+			}
+		}
+
+		// Attack max score cell
+		if (board[max_i][max_j] == 0) {
+			enemy[max_i][max_j] = -1;
+			attack++;
+			update(state, max_i, max_j);
+		}
+		else {
+			enemy[max_i][max_j] = 2;
+			enemy_sum++;
+			attack++;
+
+			// searchX(state, max_i, max_j);
+			// searchY(state, max_i, max_j);
+			search_neighbor(state, max_i, max_j);
+
+			print2();
+
+		}
+
+		// print();
+		
+
+	}
+
+	int result = 0;
+	for (int i = 0; i < GRID_SIZE; i++) {
+		for (int j = 0; j < GRID_SIZE; j++) {
+			if (enemy[i][j] != 0) {
+				result++;
+				enemy[i][j] = 0;
+			}
+		}
+	}
+	enemy_sum = 0;
+	return result;
+}
+
+int BattleShip::search_neighbor(vector<vector<Cell>>& state, int x, int y) {
+
+	update(state, x, y);
+
+	vector<int> direction = {1, 0, -1, 0, 0, 1, 0, -1};
+
+	for (int d = 0; d < direction.size(); d += 2) {
+		int i = x + direction[d], j = y + direction[d+1];
+
+		if (i >= 0 && i < GRID_SIZE && j >= 0 && j < GRID_SIZE && enemy[i][j] == 0 && state[i][j].value > 0) {
+			if (board[i][j] == 1) {
+				enemy[i][j] = 2;
+				enemy_sum++;
+				search_neighbor(state, i, j);
+			}
+			else {
+				enemy[i][j] = -1;
+				update(state, i, j);
+			}
+		}
+	}
+	return 0;
+}
+
+void BattleShip::update(vector<vector<Cell>>& state, int x, int y) {
+
+	if (state[x][y].value == 0) return;
+
+	state[x][y].setZero();
+
+	vector<int> direction = {-1, 1};
+
+	for (auto dx : direction) {
+		for (int i = x + dx; i >= 0 && i < GRID_SIZE; i += dx) {
+			int j = y;
+
+			if (state[i][j].value == 0) break;
+
+			state[i][j].up = i > 0 ? state[i-1][j].up + 1 : state[i][j].up;
+			state[i][j].down = i < GRID_SIZE - 1 ? state[i+1][j].down + 1 : state[i][j].down;
+
+			int score_x = min(state[i][j].up, state[i][j].down) * 2;
+			int score_y = min(state[i][j].left, state[i][j].right) * 2;
+			state[i][j].value = score_x * score_y;
+		}
+	}
+
+	for (auto dy : direction) {
+		for (int j = y + dy; j >= 0 && j < GRID_SIZE; j += dy) {
+			int i = x;
+
+			if (state[i][j].value == 0) break;
+
+
+			state[i][j].left = j > 0 ? state[i][j-1].left + 1 : state[i][j].left;
+			state[i][j].right = j < GRID_SIZE - 1 ? state[i][j+1].right + 1 : state[i][j].right;
+
+			int score_x = min(state[i][j].up, state[i][j].down) * 2;
+			int score_y = min(state[i][j].left, state[i][j].right) * 2;
+			state[i][j].value = score_x * score_y;
+		}
+	}
+
+}
+
+int BattleShip::searchX(vector<vector<Cell>>& state, int x, int y)
+{
+	if (state[x][y].value == 0) return 0;
+	update(state, x, y);
+	int hit = 1, j = y;
+
+	for (int i = x+1; i < GRID_SIZE; i++) {
+		update(state, i, j);
+		if (board[i][j] == 1) {
+			enemy[i][j] = 2;
+			enemy_sum++;
+		}
+		else {
+			enemy[i][j] = -1;
+			break;
+		}
+	}
+	for (int i = x-1; i >=0 ; i--) {
+		update(state, i, j);
+		if (board[i][j] == 1) {
+			enemy_sum++;
+			enemy[i][j] = 2;
+		}
+		else {
+			enemy[i][j] = -1;
+			break;
+		}
+	}
+
+	return hit;
+}
+
+int BattleShip::searchY(vector<vector<Cell>>& state, int x, int y)
+{
+
+	update(state, x, y);
+	int hit = 1, i = x;
+
+	for (int j = y+1; j < GRID_SIZE; j++) {
+		update(state, i, j);
+		if (board[i][j] == 1) {
+			enemy_sum++;
+			enemy[i][j] = 2;
+		}
+		else {
+			enemy[i][j] = -1;
+			break;
+		}
+	}
+	for (int j = y-1; j >=0 ; j--) {
+		update(state, i, j);
+		if (board[i][j] == 1) {
+			enemy_sum++;
+			enemy[i][j] = 2;
+		}
+		else {
+			enemy[i][j] = -1;
+			break;
+		}
+	}
+	
+	return hit;
 }
 
 void BattleShip::attack_along_ship(int x, int y, int& attack, int& hit) {
